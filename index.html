@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#172554"><link rel="manifest" href="manifest.webmanifest">
+<title>LEAP NOTE</title>
+<style>
+:root{color-scheme:light;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:#f3f5fa;color:#172033;padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom)}
+header{max-width:600px;margin:22px auto 12px;display:flex;justify-content:space-between;align-items:center}
+h1{font-size:23px;margin:0;letter-spacing:.04em}.sub{font-size:12px;color:#64748b;margin-top:4px}
+main{max-width:600px;margin:auto}.stats{display:flex;gap:8px;margin:16px 0}.pill{background:white;border-radius:12px;padding:10px 12px;font-size:13px;flex:1;text-align:center}
+.card{background:white;border-radius:24px;min-height:270px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px;box-shadow:0 8px 28px #17255412;border:1px solid #e4e9f2;cursor:pointer;text-align:center}
+.eyebrow{font-size:12px;color:#64748b;margin-bottom:18px}.word{font-size:32px;font-weight:750;overflow-wrap:anywhere}.meaning{font-size:22px;line-height:1.6;font-weight:650}.hint{font-size:12px;color:#64748b;margin-top:22px}
+.controls{display:flex;gap:10px;margin:14px 0}.btn{border:0;border-radius:14px;padding:14px 12px;font-size:15px;font-weight:650;background:#e2e8f0;color:#172033;flex:1}.primary{background:#172554;color:white}.green{background:#dcfce7;color:#166534}.red{background:#fee2e2;color:#991b1b}
+.panel{background:white;border-radius:18px;padding:16px;margin:14px 0}.panel h2{font-size:16px;margin:0 0 12px}input,textarea{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font:inherit;margin:5px 0 10px}textarea{min-height:100px}
+.small{font-size:12px;color:#64748b;line-height:1.6}.list{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #eef2f7;font-size:14px}
+.hidden{display:none}.nav{display:flex;gap:8px;margin:14px 0}.nav button{font-size:13px;padding:11px}.file{display:block;background:#eff6ff;padding:12px;border-radius:12px;margin:8px 0}
+</style>
+</head>
+<body>
+<header><div><h1>LEAP NOTE</h1><div class="sub">自分専用 英単語暗記ノート</div></div><div id="counter" class="sub">1 / 21</div></header>
+<main>
+<div class="stats"><div class="pill">登録 <b id="total">21</b> 語</div><div class="pill">覚えた <b id="known">0</b> 語</div><div class="pill">苦手 <b id="missed">0</b> 語</div></div>
+<section id="study">
+<div class="card" id="flash" role="button" tabindex="0" aria-label="カードをめくる"><div class="eyebrow" id="side">ENGLISH</div><div class="word" id="front">abandon</div><div class="hint" id="hint">タップして日本語を表示</div></div>
+<div class="controls"><button class="btn" id="prev">前へ</button><button class="btn primary" id="flip">答えを見る</button><button class="btn" id="next">次へ</button></div>
+<div class="controls"><button class="btn green" id="knownBtn">✓ 覚えた</button><button class="btn red" id="missBtn">× まだ苦手</button></div>
+<div class="small">カードをタップすると日本語訳が表示されます。登録した単語と学習記録は、このiPhoneのブラウザ内に保存されます。</div>
+</section>
+<section class="panel">
+<h2>📷 写真から単語を読み取る</h2>
+<label class="file">カメラで撮影 / 写真ライブラリから選択<input id="ocrPhoto" type="file" accept="image/*" capture="environment"></label>
+<div class="small">英語と日本語をOCRで読み取り、候補を確認してから登録します。印刷が鮮明で、ページを正面から撮るほど精度が上がります。初回はOCRエンジンと言語データの読み込みに通信が必要です。</div>
+<div id="ocrStatus" class="small" aria-live="polite"></div>
+<div id="ocrProgress" class="small"></div>
+<div id="ocrResults" class="hidden">
+  <h2>読み取り候補（登録前に確認・修正）</h2>
+  <div class="small">英単語と日本語訳の組み合わせは自動推定です。誤認識や対応違いがあり得るため、必ず確認してください。</div>
+  <div id="ocrRows"></div>
+  <button class="btn primary" id="registerOcr">チェックした単語を登録</button>
+</div>
+</section>
+<section class="panel">
+<h2>単語を手入力で追加</h2>
+<label>英単語<input id="newWord" placeholder="例：abandon"></label>
+<label>日本語の意味<textarea id="newMeaning" placeholder="例：捨てる・放棄する"></textarea></label>
+<button class="btn primary" id="add">この単語を追加</button>
+</section>
+<section class="panel">
+<h2>単語一覧・管理</h2><div id="wordList"></div>
+<div class="controls"><button class="btn" id="export">バックアップを書き出す</button><button class="btn" id="reset">初期データに戻す</button></div>
+<label class="file">バックアップを読み込む<input id="import" type="file" accept="application/json"></label>
+</section>
+<footer class="small">LEAP NOTE 試作版 · データはこの端末のSafariに保存されます。Safariの履歴・Webサイトデータを消去すると失われる場合があるため、定期的にバックアップしてください。</footer>
+</main>
+<script>
+const initial = [["abandon", "捨てる・放棄する"], ["achieve", "達成する・成し遂げる"], ["accurate", "正確な"], ["approach", "近づく・取り組む"], ["benefit", "利益・恩恵"], ["consider", "よく考える・検討する"], ["decrease", "減少する・減らす"], ["establish", "設立する・確立する"], ["improve", "改善する・向上させる"], ["require", "必要とする・要求する"], ["nightmare", "名詞：悪夢、悪夢のようなこと"], ["stereotype", "名詞：固定観念、偏見を含む決めつけ"], ["illusion", "名詞：幻想、（自分に関わる）間違った考えや意見"], ["criterion", "名詞：基準（複数形 criteria）"], ["ideology", "名詞：イデオロギー、政治・経済的思想"], ["tolerate", "動詞：～を大目に見る、我慢する"], ["overlook", "動詞：①見落とす ②見逃す・大目に見る ③見渡す"], ["conceive", "動詞：①～を思い浮かべる ②～を妊娠する ③～を想像する"], ["misunderstand", "動詞：（人・人の言うこと）を誤解する"], ["keen", "形容詞：①（頭脳・感性などが）鋭い ②～に熱中している"], ["subjective", "形容詞：主観的な"]];
+let words = JSON.parse(localStorage.getItem('leap_words') || 'null') || initial.map(([en,ja])=>({en,ja,status:''}));
+let index=0, flipped=false;
+let status=JSON.parse(localStorage.getItem('leap_status')||'{}');
+const $=id=>document.getElementById(id);
+function save(){localStorage.setItem('leap_words',JSON.stringify(words));localStorage.setItem('leap_status',JSON.stringify(status));}
+function render(){
+ if(!words.length){$('front').textContent='単語を追加してください';$('counter').textContent='0 / 0';return}
+ index=(index+words.length)%words.length;let w=words[index];
+ $('front').textContent=flipped?w.ja:w.en;$('front').className=flipped?'meaning':'word';
+ $('side').textContent=flipped?'日本語':'ENGLISH';$('hint').textContent=flipped?'タップして英語に戻る':'タップして日本語を表示';
+ $('counter').textContent=(index+1)+' / '+words.length;$('total').textContent=words.length;
+ $('known').textContent=Object.values(status).filter(x=>x==='known').length;
+ $('missed').textContent=Object.values(status).filter(x=>x==='missed').length;
+ $('wordList').innerHTML=words.map((w,i)=>`<div class="list"><span>${escapeHtml(w.en)} — ${escapeHtml(w.ja)}</span><button data-del="${i}" aria-label="削除">削除</button></div>`).join('');
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function flip(){flipped=!flipped;render()}
+$('flash').onclick=flip;$('flip').onclick=flip;$('flash').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();flip()}};
+$('prev').onclick=()=>{index=(index-1+words.length)%words.length;flipped=false;render()};
+$('next').onclick=()=>{index=(index+1)%words.length;flipped=false;render()};
+$('knownBtn').onclick=()=>{if(words[index]){status[words[index].en]='known';save();index=(index+1)%words.length;flipped=false;render()}};
+$('missBtn').onclick=()=>{if(words[index]){status[words[index].en]='missed';save();index=(index+1)%words.length;flipped=false;render()}};
+$('add').onclick=()=>{let en=$('newWord').value.trim(),ja=$('newMeaning').value.trim();if(!en||!ja){alert('英単語と意味の両方を入力してください');return}words.push({en,ja});$('newWord').value='';$('newMeaning').value='';save();index=words.length-1;flipped=false;render()};
+$('wordList').onclick=e=>{let b=e.target.closest('[data-del]');if(b){let i=+b.dataset.del;if(confirm(words[i].en+' を削除しますか？')){delete status[words[i].en];words.splice(i,1);index=Math.min(index,words.length-1);save();render()}}};
+$('reset').onclick=()=>{if(confirm('登録単語と学習記録を初期状態に戻しますか？')){words=initial.map(([en,ja])=>({en,ja,status:''}));status={};index=0;flipped=false;save();render()}};
+$('export').onclick=()=>{let blob=new Blob([JSON.stringify({words,status},null,2)],{type:'application/json'});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='leap-note-backup.json';a.click();URL.revokeObjectURL(a.href)};
+$('import').onchange=async e=>{try{let x=JSON.parse(await e.target.files[0].text());if(!Array.isArray(x.words))throw Error();words=x.words;status=x.status||{};index=0;flipped=false;save();render();alert('読み込みました')}catch{alert('バックアップファイルを読み込めませんでした')}};
+
+// OCR: Tesseract.js is loaded on demand from its public CDN.
+// The user reviews/edit candidates before anything is saved.
+let ocrEnginePromise;
+async function getOcrEngine(){
+ if(!ocrEnginePromise){
+  ocrEnginePromise=(async()=>{
+   if(!window.Tesseract){
+    await new Promise((resolve,reject)=>{
+     const s=document.createElement('script');
+     s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+     s.onload=resolve;s.onerror=()=>reject(new Error('OCRエンジンを読み込めません。通信環境を確認してください。'));
+     document.head.appendChild(s);
+    });
+   }
+   return await Tesseract.createWorker(['eng','jpn'],1,{
+    logger:m=>{
+     if(m.status)$('ocrProgress').textContent=m.status+(m.progress!=null?' '+Math.round(m.progress*100)+'%':'');
+    }
+   });
+  })();
+ }
+ return await ocrEnginePromise;
+}
+function splitOcrCandidates(text){
+ const lines=text.split(/\r?\n/).map(s=>s.replace(/[|¦]/g,'I').trim()).filter(Boolean);
+ const english=[];
+ const japanese=[];
+ for(const line of lines){
+  // Capture a headword-like token, excluding common OCR noise and phonetic fragments.
+  const m=line.match(/^[^A-Za-z]*([A-Za-z][A-Za-z'-]{2,})(?:\s|$)/);
+  if(m){
+   const w=m[1];
+   if(!/^(名|形|動|副|前|接|代|冠|熟|例|B[12]|C[12])$/i.test(w) && !english.some(x=>x.toLowerCase()===w.toLowerCase())) english.push(w);
+  }
+  if(/[ぁ-んァ-ヶ一-龠]/.test(line)){
+   const jp=line.replace(/^[^ぁ-んァ-ヶ一-龠]*/, '').trim();
+   if(jp.length>=2 && !japanese.includes(jp)) japanese.push(jp);
+  }
+ }
+ // Pairing by vertical reading order is only a guess; users can edit every field.
+ return english.map((en,i)=>({en,ja:japanese[i]||''}));
+}
+$('ocrPhoto').onchange=async e=>{
+ const file=e.target.files&&e.target.files[0];if(!file)return;
+ $('ocrStatus').textContent='写真を読み込んでいます…';$('ocrProgress').textContent='';$('ocrResults').classList.add('hidden');
+ try{
+  const worker=await getOcrEngine();
+  $('ocrStatus').textContent='英語・日本語を読み取り中…';
+  const result=await worker.recognize(file);
+  const candidates=splitOcrCandidates(result.data.text);
+  window.lastOcrCandidates=candidates;
+  $('ocrRows').innerHTML=candidates.length?candidates.map((x,i)=>`
+   <div class="panel" style="padding:10px">
+    <label class="small"><input type="checkbox" data-ocr-check="${i}" checked style="width:auto"> 登録する</label>
+    <label>英単語<input data-ocr-en="${i}" value="${escapeHtml(x.en)}"></label>
+    <label>日本語の意味<textarea data-ocr-ja="${i}">${escapeHtml(x.ja)}</textarea></label>
+   </div>`).join(''):'<div class="small">英単語候補を検出できませんでした。写真を明るくして撮り直すか、手入力してください。</div>';
+  $('ocrResults').classList.remove('hidden');
+  $('ocrStatus').textContent=`読み取り完了。英単語候補 ${candidates.length} 件。`;
+ }catch(err){$('ocrStatus').textContent='読み取りに失敗しました：'+err.message;}
+};
+$('registerOcr').onclick=()=>{
+ const rows=$('ocrRows').querySelectorAll('[data-ocr-en]');
+ let added=0;
+ rows.forEach((enInput)=>{
+  const i=enInput.dataset.ocrEn;
+  const check=$('ocrRows').querySelector(`[data-ocr-check="${i}"]`);
+  const jaInput=$('ocrRows').querySelector(`[data-ocr-ja="${i}"]`);
+  const en=enInput.value.trim(),ja=jaInput.value.trim();
+  if(check.checked&&en&&ja){words.push({en,ja});added++;}
+ });
+ if(!added){alert('英単語と日本語訳が入力された候補にチェックを入れてください。');return}
+ save();index=words.length-1;flipped=false;render();
+ $('ocrStatus').textContent=`${added}語を登録しました。`;
+ $('ocrResults').classList.add('hidden');
+};
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+render();
+</script>
+</body></html>
